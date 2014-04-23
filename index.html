@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Bigram Generator</title>
+  <style>
+body {
+  margin: 0 auto;
+  max-width: 1536px;
+}
+.section {
+  border: 1px solid black;
+  margin: 40px;
+  padding: 20px;
+  position: relative;
+}
+.section:before {
+  background-color: #FFFFFF;
+  content: attr(data-label);
+  font-size: 30px;
+  font-style: italic;
+  font-weight: bold;
+  left: 15px;
+  line-height: 20px;
+  padding: 0 5px;
+  position: absolute;
+  text-decoration: underline;
+  top: -10px;
+}
+label {
+  display: block;
+  font-size: 24px;
+  font-weight: bold;
+  padding: 10px 0 5px;
+}
+textarea {
+  width: 100%;
+}
+textarea, input, #output {
+  font-size: 22px;
+}
+#output {
+  opacity: 0;
+  padding-top: 30px;
+  transition: opacity 1s ease 0s;
+}
+#output.value {
+  opacity: 1;
+}
+#description {
+  color: #444444;
+  font-size: 20px;
+  padding-top: 10px;
+}
+  </style>
+</head>
+<body>
+  <div class="section" data-label="Input">
+    <div id="description">The more text you use, the more interesting the output will be. Book-length text can take a few seconds to process.</div>
+    <form id="input-form">
+      <label for="input">Writing to emulate:</label>
+      <textarea name="input" id="input" rows="10"></textarea>
+      <label for="wordcount">Words to generate:</label>
+      <input type="number" value="1000" name="wordcount" id="wordcount" />
+      <input type="submit" value="Generate" />
+    </form>
+  </div>
+  <div id="output" class="section" data-label="Output">
+  </div>
+  <script>
+function sumValues(obj) {
+  var sum = 0;
+  for (var key in obj) {
+    if (obj.hasOwnProperty(key) && typeof obj[key] === 'number') {
+      sum += obj[key];
+    }
+  }
+  return sum;
+}
+
+function CondFreqDist(corpus) {
+  this.dist = {};
+  var lastWord = '',
+      words = corpus.toLowerCase().split(/\s+/g);
+  for (var i = 0, l = words.length; i < l; i++) {
+    var word = words[i];
+    if (lastWord) {
+      var next = this.dist[lastWord] || {};
+      next[word] = (next[word] || 0) + 1;
+      this.dist[lastWord] = next;
+    }
+    lastWord = word;
+  }
+}
+CondFreqDist.prototype.count = function(w1, w2) {
+  return (this.dist[w1.toLowerCase()] || {})[w2.toLowerCase()] || 0;
+};
+CondFreqDist.prototype.freq = function(w1, w2) {
+  return (this.count(w1, w2) / sumValues(this.dist[w1.toLowerCase()] || {})) || 0;
+};
+CondFreqDist.prototype.getRandomWord = function() {
+  var keys = Object.keys(this.dist);
+  return keys[(keys.length * Math.random()) | 0] || '';
+};
+
+function transformSyntax(s) {
+  return s[0].toUpperCase() + s.substring(1).replace(/\.\s+\w/g, function(match) {
+    return match.toUpperCase();
+  }).replace(/\W*$/, '.');
+}
+
+function generateBigramSeq(fdist, length, word) {
+  word = word ? word.toLowerCase() : fdist.getRandomWord().toLowerCase();
+  wordSeq = [word];
+  var cycles = 0;
+  while (wordSeq.length < length) {
+    var r = Math.random(),
+        s = 0,
+        words = fdist.dist[word] || {};
+    if (Object.keys(words).length === 0) break;
+    for (var next in words) {
+      if (words.hasOwnProperty(next)) {
+        s += fdist.freq(word, next);
+        if (s > r) {
+          wordSeq.push(next);
+          word = next;
+          break;
+        }
+      }
+    }
+    // Sanity check
+    if (++cycles > length * 2) {
+        if (window.console && console.log) console.log('too many cycles');
+        break;
+    }
+  }
+  return transformSyntax(wordSeq.join(' '));
+}
+
+window.onload = function() {
+  var input = document.getElementById('input'),
+      output = document.getElementById('output'),
+      wordcount = document.getElementById('wordcount'),
+      fd;
+  input.addEventListener('change', function(e) {
+    fd = null;
+  }, false);
+  document.getElementById('input-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    output.classList.remove('value');
+    if (!fd) fd = new CondFreqDist(input.value);
+    output.textContent = generateBigramSeq(fd, parseInt(wordcount.value, 10));
+    output.classList.add('value');
+  }, false);
+};
+  </script>
+</body>
+</html>
